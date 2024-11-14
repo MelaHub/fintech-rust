@@ -69,7 +69,13 @@ impl Accounts {
     pub fn withdraw(&mut self, signer: &str, amount: u64) -> Result<Tx, AccountingError> {
         match self.accounts.get_mut(signer) {
             Some(account) => {
-                account.checked_sub(amount).ok_or(AccountingError::AccountUnderFunded(signer.to_string(), amount))?;
+                account
+                    .checked_sub(amount)
+                    .and_then(|r| {
+                        *account = r;
+                        Some(r)
+                    })
+                    .ok_or(AccountingError::AccountUnderFunded(signer.to_string(), amount))?;
                 Ok(Tx::Withdraw { account: signer.to_string(), amount })
             }
             None => Err(AccountingError::AccountNotFound(signer.to_string()))
