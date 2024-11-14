@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::num::ParseIntError;
 
 
 /// An application-specific error type
@@ -101,9 +102,81 @@ impl Accounts {
             return Err(AccountingError::AccountNotFound(recipient.to_string()));
         }
     }
+    
+}
+
+fn read_from_stdin(label: &str) -> String {
+    use std::io::{self, Write};
+    print!("{}", label);
+    io::stdout().flush().unwrap();
+    let mut buffer = String::new();
+    io::stdin().read_line(&mut buffer).unwrap();
+    buffer.trim().to_string()
+}
+
+fn read_int_from_stdin(label: &str) -> Result<u64, ParseIntError> {
+    read_from_stdin(label)
+        .parse::<u64>()
 }
 
 fn main() {
+    let mut ledger = Accounts::new();
+    loop {
+        let command = read_from_stdin("Enter a command: ");
+        match command.as_str() {
+            "deposit" => {
+                let account = read_from_stdin("Enter account: ");
+                let amount = read_int_from_stdin("Enter amount: ");
+                match amount {
+                    Ok(amount) => {
+                        let status = ledger.deposit(&account, amount);
+                        println!("Depositing {} for {}: {:?}", account, amount, status);
+                    },
+                    Err(e) => {
+                        println!("Please provide a positive integer value: {:?}", e);
+                    }
+                }
+            },
+            "withdraw" => {
+                let account = read_from_stdin("Enter account: ");
+                let amount = read_int_from_stdin("Enter amount: ");
+                match amount {
+                    Ok(amount) => {
+                        let status = ledger.withdraw(&account, amount);
+                        println!("Withdrawing {} for {}: {:?}", account, amount, status);
+                    },
+                    Err(e) => {
+                        println!("Please provide a positive integer value: {:?}", e);
+                    }
+                }
+            },
+            "send" => {
+                let sender = read_from_stdin("Enter sender: ");
+                let recipient = read_from_stdin("Enter recipient: ");
+                let amount = read_int_from_stdin("Enter amount: ");
+                match amount {
+                    Ok(amount) => {
+                        let status = ledger.send(&sender, &recipient, amount);
+                        println!("Sent {} from {} to {}: {:?}", amount, sender, recipient, status);
+                    },
+                    Err(e) => {
+                        println!("Please provide a positive integer value: {:?}", e);
+                    }
+                }
+            },
+            "print" => {
+                println!("Ledger: {:?}", ledger);
+            },
+            "quit" => {
+                break;
+            },
+            _ => {
+                println!("Command '{}' not found", command);
+            }
+        };
+    }
+
+    /* 
     println!("Hello, accounting world!");
 
     // We are using simple &str instances as keys
@@ -162,4 +235,5 @@ fn main() {
     // {:?} prints the Debug implementation, {:#?} pretty-prints it
     println!("Ledger empty: {:?}", ledger);
     println!("The TX log: {:#?}", tx_log);
+    */
 }
