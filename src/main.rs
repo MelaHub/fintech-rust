@@ -4,20 +4,25 @@ use std::collections::HashMap;
 /// An application-specific error type
 #[derive(Debug)]
 enum AccountingError {
-    // Add variants here for account not found, account underfunded and account overfunded
+    AccountOverFunded(String, u64),
+    AccountUnderFunded(String, u64),
+    AccountNotFound(String),
 }
 
 /// A transaction type. Transactions should be able to rebuild a ledger's state
 /// when they are applied in the same sequence to an empty state.
 #[derive(Debug)]
 pub enum Tx {
-    // Add variants for storing withdraw/deposit transactions
+    Deposit { account: String, amount: u64 },
+    Withdraw { account: String, amount: u64 },
 }
 
 /// A type for managing accounts and their current currency balance
 #[derive(Debug)]
 struct Accounts {
-    // Add a property `accounts` here
+    
+    accounts: HashMap<String, u64>,
+    
 }
 
 impl Accounts {
@@ -62,7 +67,13 @@ impl Accounts {
     /// # Errors
     /// Attempted overflow
     pub fn withdraw(&mut self, signer: &str, amount: u64) -> Result<Tx, AccountingError> {
-        todo!();
+        match self.accounts.get_mut(signer) {
+            Some(account) => {
+                account.checked_sub(amount).ok_or(AccountingError::AccountUnderFunded(signer.to_string(), amount))?;
+                Ok(Tx::Withdraw { account: signer.to_string(), amount })
+            }
+            None => Err(AccountingError::AccountNotFound(signer.to_string()))
+        }
     }
 
     /// Withdraws the amount from the sender account and deposits it in the recipient account.
@@ -75,7 +86,14 @@ impl Accounts {
         recipient: &str,
         amount: u64,
     ) -> Result<(Tx, Tx), AccountingError> {
-       todo!();
+
+        if let Some(_) = self.accounts.get(recipient) {
+            let tx1 = self.withdraw(sender, amount)?;
+            let tx2 = self.deposit(recipient, amount)?;
+            Ok((tx1, tx2))
+        } else {
+            return Err(AccountingError::AccountNotFound(recipient.to_string()));
+        }
     }
 }
 
