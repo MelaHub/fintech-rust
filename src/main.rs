@@ -1,109 +1,9 @@
-use std::collections::HashMap;
+mod accounts;
+mod errors;
+mod tx;
+
+use accounts::Accounts;
 use std::num::ParseIntError;
-
-
-/// An application-specific error type
-#[derive(Debug)]
-enum AccountingError {
-    AccountOverFunded(String, u64),
-    AccountUnderFunded(String, u64),
-    AccountNotFound(String),
-}
-
-/// A transaction type. Transactions should be able to rebuild a ledger's state
-/// when they are applied in the same sequence to an empty state.
-#[derive(Debug)]
-pub enum Tx {
-    Deposit { account: String, amount: u64 },
-    Withdraw { account: String, amount: u64 },
-}
-
-/// A type for managing accounts and their current currency balance
-#[derive(Debug)]
-struct Accounts {
-    
-    accounts: HashMap<String, u64>,
-    
-}
-
-impl Accounts {
-
-    /// Returns an empty instance of the [`Accounts`] type
-    pub fn new() -> Self {
-        Accounts {
-            accounts: Default::default()
-        }
-    }
-
-    /// Either deposits the `amount` provided into the `signer` account or adds the amount to the existing account.
-    /// # Errors
-    /// Attempted overflow
-    pub fn deposit(&mut self, signer: &str, amount: u64) -> Result<Tx, AccountingError> {
-        if let Some(account) = self.accounts.get_mut(signer) {
-            (*account)
-                .checked_add(amount)
-                .and_then(|r| {
-                    *account = r;
-                    Some(r)
-                })
-                .ok_or(AccountingError::AccountOverFunded(
-                    signer.to_string(),
-                    amount,
-                ))
-                // Using map() here is an easy way to only manipulate the non-error result
-                .map(|_| Tx::Deposit {
-                    account: signer.to_string(),
-                    amount,
-                })
-        } else {
-            self.accounts.insert(signer.to_string(), amount);
-            Ok(Tx::Deposit {
-                account: signer.to_string(),
-                amount,
-            })
-        }
-    }
-
-    /// Withdraws the `amount` from the `signer` account.
-    /// # Errors
-    /// Attempted overflow
-    pub fn withdraw(&mut self, signer: &str, amount: u64) -> Result<Tx, AccountingError> {
-        match self.accounts.get_mut(signer) {
-            Some(account) => {
-                account
-                    .checked_sub(amount)
-                    .and_then(|r| {
-                        *account = r;
-                        Some(r)
-                    })
-                    .ok_or(AccountingError::AccountUnderFunded(signer.to_string(), amount))?;
-                Ok(Tx::Withdraw { account: signer.to_string(), amount })
-            }
-            None => Err(AccountingError::AccountNotFound(signer.to_string()))
-        }
-    }
-
-    /// Withdraws the amount from the sender account and deposits it in the recipient account.
-    ///
-    /// # Errors
-    /// The account doesn't exist
-    pub fn send(
-        &mut self,
-        sender: &str,
-        recipient: &str,
-        amount: u64,
-    ) -> Result<(Tx, Tx), AccountingError> {
-
-        if let Some(_) = self.accounts.get(recipient) {
-            let tx1 = self.withdraw(sender, amount)?;
-            let tx2 = self.deposit(recipient, amount)?;
-            Ok((tx1, tx2))
-        } else {
-            return Err(AccountingError::AccountNotFound(recipient.to_string()));
-        }
-    }
-    
-}
 
 fn read_from_stdin(label: &str) -> String {
     use std::io::{self, Write};
@@ -115,8 +15,7 @@ fn read_from_stdin(label: &str) -> String {
 }
 
 fn read_int_from_stdin(label: &str) -> Result<u64, ParseIntError> {
-    read_from_stdin(label)
-        .parse::<u64>()
+    read_from_stdin(label).parse::<u64>()
 }
 
 fn main() {
@@ -131,12 +30,12 @@ fn main() {
                     Ok(amount) => {
                         let status = ledger.deposit(&account, amount);
                         println!("Depositing {} for {}: {:?}", account, amount, status);
-                    },
+                    }
                     Err(e) => {
                         println!("Please provide a positive integer value: {:?}", e);
                     }
                 }
-            },
+            }
             "withdraw" => {
                 let account = read_from_stdin("Enter account: ");
                 let amount = read_int_from_stdin("Enter amount: ");
@@ -144,12 +43,12 @@ fn main() {
                     Ok(amount) => {
                         let status = ledger.withdraw(&account, amount);
                         println!("Withdrawing {} for {}: {:?}", account, amount, status);
-                    },
+                    }
                     Err(e) => {
                         println!("Please provide a positive integer value: {:?}", e);
                     }
                 }
-            },
+            }
             "send" => {
                 let sender = read_from_stdin("Enter sender: ");
                 let recipient = read_from_stdin("Enter recipient: ");
@@ -157,26 +56,29 @@ fn main() {
                 match amount {
                     Ok(amount) => {
                         let status = ledger.send(&sender, &recipient, amount);
-                        println!("Sent {} from {} to {}: {:?}", amount, sender, recipient, status);
-                    },
+                        println!(
+                            "Sent {} from {} to {}: {:?}",
+                            amount, sender, recipient, status
+                        );
+                    }
                     Err(e) => {
                         println!("Please provide a positive integer value: {:?}", e);
                     }
                 }
-            },
+            }
             "print" => {
                 println!("Ledger: {:?}", ledger);
-            },
+            }
             "quit" => {
                 break;
-            },
+            }
             _ => {
                 println!("Command '{}' not found", command);
             }
         };
     }
 
-    /* 
+    /*
     println!("Hello, accounting world!");
 
     // We are using simple &str instances as keys
