@@ -1,43 +1,66 @@
-use std::collections::HashMap;
-
 use crate::{
     accounting::Accounts,
-    core::{MatchingEngine, Order, PartialOrder, Receipt, Side},
-    errors::{ApplicationError, ApplicationError},
+    core::matching::MatchingEngine,
+    core::{Order, PartialOrder, Receipt, Side},
+    errors::ApplicationError,
     tx::Tx,
 };
 
 /// The core of the core: the [`TradingPlatform`]. Manages accounts, validates-, and orchestrates the processing of each order.
 pub struct TradingPlatform {
-    todo!();
+    accounts: Accounts,
+    matching_engine: MatchingEngine,
+    transaction_log: Vec<Tx>,
 }
 
 impl TradingPlatform {
     /// Creates a new instance without any data.
     pub fn new() -> Self {
         TradingPlatform {
-            todo!();
+            accounts: Accounts::new(),
+            matching_engine: MatchingEngine::new(),
+            transaction_log: Vec::new(),
         }
     }
 
     /// Fetches the complete order book at this time
     pub fn orderbook(&self) -> Vec<PartialOrder> {
-        todo!();
+        let mut orders = Vec::new();
+        // let test: BTreeMap<u64, BinaryHeap<PartialOrder>> = self.matching_engine.asks.iter();
+        let asks_vec: Vec<PartialOrder> = self
+            .matching_engine
+            .asks
+            .iter()
+            .flat_map(|(_, v)| v.iter().cloned())
+            .collect();
+        let bids_vec: Vec<PartialOrder> = self
+            .matching_engine
+            .bids
+            .iter()
+            .flat_map(|(_, v)| v.iter().cloned())
+            .collect();
+        orders.extend(asks_vec);
+        orders.extend(bids_vec);
+        orders
     }
 
     /// Withdraw funds
     pub fn balance_of(&mut self, signer: &str) -> Result<&u64, ApplicationError> {
-        todo!();
+        self.accounts.balance_of(signer)
     }
 
     /// Deposit funds
     pub fn deposit(&mut self, signer: &str, amount: u64) -> Result<Tx, ApplicationError> {
-        todo!();
+        let tx = self.accounts.deposit(signer, amount)?;
+        self.transaction_log.push(tx.clone());
+        Ok(tx)
     }
 
     /// Withdraw funds
     pub fn withdraw(&mut self, signer: &str, amount: u64) -> Result<Tx, ApplicationError> {
-        todo!();
+        let tx = self.accounts.withdraw(signer, amount)?;
+        self.transaction_log.push(tx.clone());
+        Ok(tx)
     }
 
     /// Transfer funds between sender and recipient
@@ -47,12 +70,52 @@ impl TradingPlatform {
         recipient: &str,
         amount: u64,
     ) -> Result<(Tx, Tx), ApplicationError> {
-        todo!();
+        let tx = self.accounts.send(sender, recipient, amount).unwrap();
+
+        self.transaction_log.push(tx.0.clone());
+        self.transaction_log.push(tx.1.clone());
+
+        Ok(tx)
     }
 
     /// Process a given order and apply the outcome to the accounts involved. Note that there are very few safeguards in place.
     pub fn order(&mut self, order: Order) -> Result<Receipt, ApplicationError> {
-        todo!();
+        // Check if the account exists
+        self.accounts.balance_of(&order.signer)?;
+        if order.side == Side::Buy && self.accounts.balance_of(&order.signer)? < &order.amount {
+            return Err(ApplicationError::AccountUnderFunded(
+                order.signer,
+                order.amount,
+            ));
+        }
+        let receipt = self.matching_engine.process(order.clone());
+
+        let _total_realized = receipt
+            .as_ref()
+            .unwrap()
+            .matches
+            .iter()
+            .map(|m| m.price * m.amount)
+            .sum::<u64>();
+
+        match order.side {
+            Side::Buy => {
+                receipt.as_ref().unwrap().matches.iter().for_each(|m| {
+                    self.accounts
+                        .send(&order.signer, &m.signer, m.amount * m.price)
+                        .unwrap();
+                });
+            }
+            Side::Sell => {
+                receipt.as_ref().unwrap().matches.iter().for_each(|m| {
+                    self.accounts
+                        .send(&m.signer, &order.signer, m.amount * m.price)
+                        .unwrap();
+                });
+            }
+        }
+
+        receipt
     }
 }
 
