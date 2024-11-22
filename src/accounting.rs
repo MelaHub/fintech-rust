@@ -29,9 +29,9 @@ impl Accounts {
         if let Some(account) = self.accounts.get_mut(signer) {
             (*account)
                 .checked_add(amount)
-                .and_then(|r| {
+                .map(|r| {
                     *account = r;
-                    Some(r)
+                    r
                 })
                 .ok_or(ApplicationError::AccountOverFunded(
                     signer.to_string(),
@@ -58,9 +58,9 @@ impl Accounts {
         if let Some(account) = self.accounts.get_mut(signer) {
             (*account)
                 .checked_sub(amount)
-                .and_then(|r| {
+                .map(|r| {
                     *account = r;
-                    Some(r)
+                    r
                 })
                 .ok_or(ApplicationError::AccountUnderFunded(
                     signer.to_string(),
@@ -104,12 +104,10 @@ impl Accounts {
                     e
                 })
                 .map(|tx_deposit| (tx_withdraw, tx_deposit))
+        } else if !self.accounts.contains_key(sender) {
+            Err(ApplicationError::AccountNotFound(sender.to_string()))
         } else {
-            if !self.accounts.contains_key(sender) {
-                Err(ApplicationError::AccountNotFound(sender.to_string()))
-            } else {
-                Err(ApplicationError::AccountNotFound(recipient.to_string()))
-            }
+            Err(ApplicationError::AccountNotFound(recipient.to_string()))
         }
     }
 }

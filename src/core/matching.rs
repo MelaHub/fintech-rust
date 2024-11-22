@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BinaryHeap};
+use std::cmp::Ordering;
 
 use crate::{
     core::{Order, Receipt, Side},
@@ -45,8 +46,19 @@ impl MatchingEngine {
         // Orders are matched to the opposite side
         let receipt = match &partial.side {
             Side::Buy => {
-                // Implement this side of the matching!
-                todo!();
+                let orderbook_entry = self.asks.range_mut(0..=partial.price);
+
+                let receipt = MatchingEngine::match_order(&partial, orderbook_entry, ordinal)?;
+                let matched_amount: u64 = receipt.matches.iter().map(|m| m.amount).sum();
+
+                // The order wasn't fully matched
+                if matched_amount < original_amount {
+                    partial.remaining = original_amount - matched_amount;
+                    let bids = self.bids.entry(partial.price).or_insert(vec![].into());
+
+                    bids.push(partial);
+                }
+                receipt
             }
             Side::Sell => {
                 // Fetch all orders in the expected price range from this side of the orderbook
@@ -78,11 +90,11 @@ impl MatchingEngine {
     /// Matches an order to the provided order book side.
     /// # Parameters
     /// - `order`: the order to match to the book
-    /// - `orderbook_entry`: a pre-filtered iterator for order book_entry in the correct price range
+    /// - `orderbook_entries`: a pre-filtered iterator for order book_entry in the correct price range
     /// - `ordinal` the next ordinal number to use if a position is opened
     fn match_order<'a, T>(
         order: &PartialOrder,
-        mut orderbook_entry: T,
+        mut orderbook_entries: T,
         ordinal: u64,
     ) -> Result<Receipt, ApplicationError>
     where
@@ -90,18 +102,66 @@ impl MatchingEngine {
     {
         let mut remaining_amount = order.amount;
         let mut matches = vec![];
-
         // Each matching position's amount is subtraced
         'outer: while remaining_amount > 0 {
-            // The iterator contains all orderbook_entry of a price point
-            match orderbook_entry.next() {
-                Some((price, orderbook_entry)) => {
-                    // 1 remove the Order with the lowest sequence nr from the orderbook entry
-                    // 2 check if it's your own order
-                    // 3 subtract the amount from your current order and decide
-                    //   a. is there anything left from the match? split the Order into two and put one back into the orderbook entry
-                    //   b. if nothing is left, add the full order to your matches and continue from 1
-                    todo!()
+            // The iterator contains all orderbook_entries of a price point
+            match orderbook_entries.next() {
+                Some((_price, orderbook_entry)) => {
+                    let mut self_signed = vec![];
+                    while let Some(partial_order) = orderbook_entry.pop() {
+                        if partial_order.signer == order.signer {
+                            self_signed.push(partial_order.clone());
+                            continue;
+                        }
+                        match partial_order.amount.cmp(&remaining_amount) {
+                            Ordering::Equal => {
+                                matches.push(PartialOrder {
+                                    price: partial_order.price,
+                                    amount: partial_order.amount,
+                                    remaining: 0,
+                                    side: partial_order.side.clone(),
+                                    signer: partial_order.signer.clone(),
+                                    ordinal: partial_order.ordinal,
+                                });
+                                remaining_amount = 0;
+                            }
+                            Ordering::Less => {
+                                matches.push(PartialOrder {
+                                    price: partial_order.price,
+                                    amount: partial_order.amount,
+                                    remaining: 0,
+                                    side: partial_order.side.clone(),
+                                    signer: partial_order.signer.clone(),
+                                    ordinal: partial_order.ordinal,
+                                });
+                                remaining_amount -= partial_order.amount;
+                            }
+                            Ordering::Greater => {
+                                let remaining = partial_order.amount - remaining_amount;
+                                let partial = PartialOrder {
+                                    price: partial_order.price,
+                                    amount: partial_order.amount,
+                                    remaining,
+                                    side: partial_order.side.clone(),
+                                    signer: partial_order.signer.clone(),
+                                    ordinal,
+                                };
+                                matches.push(PartialOrder {
+                                    price: partial_order.price,
+                                    amount: partial_order.amount,
+                                    remaining: partial_order.amount - remaining_amount,
+                                    side: partial_order.side.clone(),
+                                    signer: partial_order.signer.clone(),
+                                    ordinal,
+                                });
+                                orderbook_entry.push(partial);
+                                remaining_amount = 0;
+                            }
+                        }
+                    }
+                    for self_order in self_signed {
+                        orderbook_entry.push(self_order.clone());
+                    }
                 }
                 // Nothing left to match with
                 None => break 'outer,
@@ -120,8 +180,46 @@ mod tests {
 
     #[test]
     fn test_MatchingEngine_process_partially_match_order() {
-        // Immplement me
-        todo!();
+        let mut matching_engine = MatchingEngine::new();
+
+        let alice_receipt = matching_engine
+            .process(Order {
+                price: 10,
+                amount: 1,
+                side: Side::Sell,
+                signer: "ALICE".to_string(),
+            })
+            .unwrap();
+
+        assert_eq!(alice_receipt.matches, vec![]);
+        assert_eq!(alice_receipt.ordinal, 1);
+
+        let bob_receipt = matching_engine
+            .process(Order {
+                price: 10,
+                amount: 2,
+                side: Side::Buy,
+                signer: "BOB".to_string(),
+            })
+            .unwrap();
+
+        assert_eq!(bob_receipt.matches.len(), 1);
+        assert_eq!(
+            bob_receipt.matches[0],
+            PartialOrder {
+                price: 10,
+                amount: 1,
+                remaining: 0,
+                side: Side::Sell,
+                signer: "ALICE".to_string(),
+                ordinal: 1
+            }
+        );
+        assert_eq!(bob_receipt.matches[0].ordinal, 1);
+        assert_eq!(bob_receipt.ordinal, 2);
+
+        assert_eq!(matching_engine.asks.len(), 0);
+        assert_eq!(matching_engine.bids.len(), 1);
     }
 
     #[test]
