@@ -7,6 +7,7 @@ use crate::{
 };
 
 /// The core of the core: the [`TradingPlatform`]. Manages accounts, validates-, and orchestrates the processing of each order.
+#[derive(Debug)]
 pub struct TradingPlatform {
     accounts: Accounts,
     matching_engine: MatchingEngine,
@@ -127,7 +128,6 @@ mod tests {
     use super::*;
 
     #[test]
-    #[ignore]
     fn test_TradingPlatform_order_requires_deposit_to_order() {
         let mut trading_platform = TradingPlatform::new();
 

@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BinaryHeap};
-use std::cmp::Ordering;
 
 use crate::{
     core::{Order, Receipt, Side},
