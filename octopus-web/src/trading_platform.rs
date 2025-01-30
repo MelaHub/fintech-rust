@@ -1,7 +1,7 @@
 use octopus_common::{
-    types::{Order, PartialOrder, Receipt, Side},
     errors::ApplicationError,
     tx::Tx,
+    types::{Order, PartialOrder, Receipt, Side},
 };
 
 use crate::{accounting::Accounts, core::MatchingEngine};

@@ -1,7 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::cmp::Reverse;
 
 /// Simplified side of a position as well as order.
-#[derive(Clone, PartialOrd, PartialEq, Eq, Debug, Ord)]
+#[derive(Clone, PartialOrd, PartialEq, Eq, Debug, Ord, Serialize, Deserialize)]
 pub enum Side {
     /// Want to buy
     Buy,
@@ -10,7 +11,7 @@ pub enum Side {
 }
 
 /// An order for a specified symbol to buy or sell an amount at a given price.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Order {
     /// Max/min price (depending on the side)
     pub price: u64,
@@ -43,7 +44,7 @@ impl Order {
 }
 
 /// A position represents an unfilled order that is kept in the system for later filling.
-#[derive(Clone, PartialEq, Debug, Eq, Ord)]
+#[derive(Clone, PartialEq, Debug, Eq, Ord, Serialize, Deserialize)]
 pub struct PartialOrder {
     /// Price per unit
     pub price: u64,
@@ -67,7 +68,7 @@ impl PartialOrd for PartialOrder {
 }
 
 /// A receipt issued to the caller for accepting an [`Order`]
-#[derive(Clone, PartialOrd, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialOrd, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct Receipt {
     /// Sequence number
     pub ordinal: u64,
@@ -85,4 +86,22 @@ impl PartialOrder {
         new.price = price;
         new
     }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct AccountUpdateRequest {
+    pub signer: String,
+    pub amount: u64,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct AccountBalanceRequest {
+    pub signer: String,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct SendRequest {
+    pub from: String,
+    pub to: String,
+    pub amount: u64,
 }

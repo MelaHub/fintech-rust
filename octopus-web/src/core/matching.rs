@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BinaryHeap};
 
 use octopus_common::{
-    types::{Order, Receipt, Side, PartialOrder},
     errors::ApplicationError,
+    types::{Order, PartialOrder, Receipt, Side},
 };
 
 #[derive(Default, Debug)]

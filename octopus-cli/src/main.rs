@@ -1,3 +1,4 @@
+/*
 use std::{io, num::ParseIntError};
 mod accounting;
 mod core;
@@ -103,4 +104,8 @@ fn main() {
             }
         }
     }
+}
+*/
+fn main() {
+    println!("Hello, accounting world!");
 }

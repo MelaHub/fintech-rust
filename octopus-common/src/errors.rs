@@ -1,3 +1,5 @@
+use warp::reject::Reject;
+
 /// An application-specific error type
 #[derive(Debug, PartialEq, Eq)]
 pub enum ApplicationError {
@@ -10,3 +12,8 @@ pub enum ApplicationError {
     /// Too much currency in the account (overflow)
     AccountOverFunded(String, u64),
 }
+
+#[derive(Debug)]
+pub struct OctopusError(pub ApplicationError);
+
+impl Reject for OctopusError {}
