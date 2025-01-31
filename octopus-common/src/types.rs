@@ -11,7 +11,7 @@ pub enum Side {
 }
 
 /// An order for a specified symbol to buy or sell an amount at a given price.
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct Order {
     /// Max/min price (depending on the side)
     pub price: u64,

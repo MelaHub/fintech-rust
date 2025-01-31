@@ -8,9 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::trading_platform::TradingPlatform;
 use octopus_common::errors::OctopusError;
-use octopus_common::types::{
-    AccountBalanceRequest, AccountUpdateRequest, Order, SendRequest,
-};
+use octopus_common::types::{AccountBalanceRequest, AccountUpdateRequest, Order, SendRequest};
 
 async fn balance_request(
     account: AccountBalanceRequest,

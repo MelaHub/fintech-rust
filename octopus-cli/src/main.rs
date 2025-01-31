@@ -1,12 +1,19 @@
-/*
 use std::{io, num::ParseIntError};
-mod accounting;
-mod core;
 
-mod trading_platform;
+use reqwest;
+use serde::{Deserialize, Serialize};
+use tokio;
 
-use crate::trading_platform::TradingPlatform;
-use octopus_common::types::{Order, Side};
+use clap::Parser;
+use octopus_common::tx::Tx;
+use octopus_common::types::{
+    AccountBalanceRequest, AccountUpdateRequest, Order, PartialOrder, SendRequest, Side,
+};
+
+#[derive(Parser, Debug)]
+struct Args {
+    url: String,
+}
 
 fn read_order_parameters() -> Result<Order, String> {
     let account = read_from_stdin("Account:");
@@ -39,10 +46,19 @@ fn read_from_stdin(label: &str) -> String {
     buffer.trim().to_owned()
 }
 
-fn main() {
-    println!("Hello, accounting world!");
+#[tokio::main]
+async fn main() -> Result<(), reqwest::Error> {
+    let args = Args::parse();
 
-    let mut ledger = TradingPlatform::new();
+    let url = args.url;
+
+    println!(
+        "Hello, accounting world! You'll send your requests to: {}",
+        url
+    );
+
+    let client = reqwest::Client::new();
+
     loop {
         let input = read_from_stdin(
             "Choose operation [deposit, withdraw, send, print, txlog, order, orderbook, quit], confirm with return:",
@@ -53,7 +69,17 @@ fn main() {
 
                 let raw_amount = read_from_stdin("Amount:").parse();
                 if let Ok(amount) = raw_amount {
-                    let _ = ledger.deposit(&account, amount);
+                    let request = AccountUpdateRequest {
+                        signer: account.clone(),
+                        amount,
+                    };
+                    let deposit_url = format!("{}/account/deposit", url);
+                    let response = client.post(deposit_url).json(&request).send().await?;
+
+                    if !response.status().is_success() {
+                        eprintln!("Something went wrong: {:?}", response);
+                    }
+
                     println!("Deposited {} into account '{}'", amount, account)
                 } else {
                     eprintln!("Not a number: '{:?}'", raw_amount);
@@ -63,7 +89,17 @@ fn main() {
                 let account = read_from_stdin("Account:");
                 let raw_amount = read_from_stdin("Amount:").parse();
                 if let Ok(amount) = raw_amount {
-                    let _ = ledger.withdraw(&account, amount);
+                    let request = AccountUpdateRequest {
+                        signer: account.clone(),
+                        amount,
+                    };
+                    let withdraw_url = format!("{}/account/withdraw", url);
+                    let response = client.post(withdraw_url).json(&request).send().await?;
+
+                    if !response.status().is_success() {
+                        eprintln!("Something went wrong: {:?}", response);
+                    }
+                    println!("Withdrawed {} from account '{}'", amount, account)
                 } else {
                     eprintln!("Not a number: '{:?}'", raw_amount);
                 }
@@ -73,27 +109,72 @@ fn main() {
                 let recipient = read_from_stdin("Recipient Account:");
                 let raw_amount = read_from_stdin("Amount:").parse();
                 if let Ok(amount) = raw_amount {
-                    let _ = ledger.send(&sender, &recipient, amount);
+                    let request = SendRequest {
+                        from: sender.clone(),
+                        to: recipient.clone(),
+                        amount,
+                    };
+                    let send_url = format!("{}/account/send", url);
+                    let response = client.post(send_url).json(&request).send().await?;
+
+                    if !response.status().is_success() {
+                        eprintln!("Something went wrong: {:?}", response);
+                    }
+                    println!(
+                        "Sent {} from account '{}' to '{}'",
+                        amount, sender, recipient
+                    )
                 } else {
                     eprintln!("Not a number: '{:?}'", raw_amount);
                 }
             }
             "order" => match read_order_parameters() {
                 Ok(order) => {
-                    println!("{:?}", ledger.order(order));
+                    let order_url = format!("{}/order", url);
+                    let response = client.post(order_url).json(&order).send().await?;
+
+                    if !response.status().is_success() {
+                        eprintln!("Something went wrong: {:?}", response);
+                    }
+                    println!("Ordered: {:#?}", order);
                 }
                 Err(msg) => {
                     eprintln!("Invalid Order parameters: '{:?}'", msg);
                 }
             },
             "orderbook" => {
-                println!("The orderbook: {:#?}", ledger.orderbook());
+                let orderbook_url = format!("{}/orderbook", url);
+                let response = client.get(orderbook_url).send().await?;
+
+                if !response.status().is_success() {
+                    eprintln!("Something went wrong: {:?}", response);
+                }
+                let orderbook = response.json::<Vec<PartialOrder>>().await?;
+                println!("The orderbook: {:#?}", orderbook);
             }
             "txlog" => {
-                println!("The TX log: {:#?}", ledger.transactions);
+                let txlog_url = format!("{}/txlog", url);
+                let response = client.get(txlog_url).send().await?;
+
+                if !response.status().is_success() {
+                    eprintln!("Something went wrong: {:?}", response);
+                }
+                let transactions = response.json::<Vec<Tx>>().await?;
+                println!("The TX log: {:#?}", transactions);
             }
             "print" => {
-                println!("The ledger: {:?}", ledger.accounts);
+                let account = read_from_stdin("Account:");
+                let request = AccountBalanceRequest {
+                    signer: account.clone(),
+                };
+                let deposit_url = format!("{}/account", url);
+                let response = client.post(deposit_url).json(&request).send().await?;
+
+                if !response.status().is_success() {
+                    eprintln!("Something went wrong: {:?}", response);
+                }
+                let balance = response.text().await?;
+                println!("Account {} has balance '{}'", account, balance)
             }
             "quit" => {
                 println!("Quitting...");
@@ -104,8 +185,5 @@ fn main() {
             }
         }
     }
-}
-*/
-fn main() {
-    println!("Hello, accounting world!");
+    Ok(())
 }
